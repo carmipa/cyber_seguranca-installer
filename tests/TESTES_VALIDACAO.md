@@ -95,18 +95,18 @@ systemctl status cyberbot-api
 
 ### Validação
 
-| Condição no título | Tag esperada | Cor da borda |
-|--------------------|--------------|--------------|
-| Emoji 🚨 presente  | CRITICAL     | Preto (#000000) |
-| CVSS ≥ 9.0         | CRITICAL     | Preto (#000000) |
-| CVSS ≥ 7.0         | HIGH         | Vermelho (#FF0000) |
-| CVSS ≥ 4.0         | MEDIUM       | Amarelo (#FFFF00) |
-| Demais casos       | INFO         | Verde (#00FF00) |
+| Condição no título | Tag esperada | Cor da borda | Ícone |
+|--------------------|--------------|--------------|-------|
+| Emoji 🚨 presente  | CRITICAL     | Vermelho (#dc3545) | 🚨 |
+| CVSS ≥ 9.0         | CRITICAL     | Vermelho (#dc3545) | 🚨 |
+| CVSS ≥ 7.0         | HIGH         | Laranja (#e67e22)  | ⚠️ |
+| CVSS ≥ 4.0         | MEDIUM       | Amarelo (#f1c40f)  | 🔶 |
+| Demais casos       | INFO         | Verde (#00FF00)    | ℹ️ |
 
 ### Resultado esperado
 
-- Alertas com **🚨** ou **CVSS ≥ 9.0** devem exibir a tag **CRITICAL** com borda preta.
-- Vulnerabilidades menores devem aparecer como **INFO** (verde) ou **HIGH** (vermelho), conforme o CVSS no título.
+- Alertas com **🚨** ou **CVSS ≥ 9.0** devem exibir a tag **CRITICAL** com borda vermelha (#dc3545).
+- HIGH (laranja), MEDIUM (amarelo) e INFO (verde) conforme o CVSS no título; sem CVSS ou CVSS &lt; 4.0 = INFO.
 
 ---
 
@@ -125,24 +125,26 @@ systemctl status cyberbot-api
 
 ## 🧪 Testes Automatizados (pasta `tests/`)
 
-O projeto inclui testes unitários e de integração na pasta `tests/`:
+Execute a partir da **raiz do projeto** (`cyber_seguranca-installer/`), com o venv ativo:
 
 ```powershell
-# Na raiz do projeto, com o venv ativo:
+cd cyber_seguranca-installer
+.venv\Scripts\Activate.ps1
 python run_tests.py
-
-# Ou diretamente:
-python -m tests.run_all
 ```
+
+Alternativa: `python -m tests.run_all` (com a raiz no `sys.path`).
 
 ### Estrutura da pasta `tests/`
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `test_imports.py` | Verifica imports e estrutura dos módulos |
-| `test_parse_severity.py` | Teste 4 – Classificação de severidade (🚨, CVSS) |
-| `test_sync_and_trigger.py` | Teste 1 – GET /data e POST /trigger_scan |
+| `run_tests.py` (raiz) | Ponto de entrada; delega para `tests/run_all.py` |
 | `run_all.py` | Runner que descobre e executa todos os testes |
+| `test_imports.py` | Verifica imports e estrutura dos módulos |
+| `test_parse_severity.py` | Teste 4 – Classificação de severidade (🚨, CVSS, cores/ícones) |
+| `test_bridge_fetch_data.py` | fetch_data, sync_from_discord, run_diagnostic (mocks) |
+| `test_sync_and_trigger.py` | GET /data e POST /trigger_scan |
 
 ---
 

@@ -54,6 +54,8 @@ O feed do painel vem **só** do que a API retorna em `/data`, que por sua vez l�
 ## Como diagnosticar quando o feed continua vazio
 
 1. **Logs do painel**  
+   - **Desenvolvimento:** `cyber_seguranca-installer/logs/cyberbot.log`
+   - **Instalado (Windows):** `%LOCALAPPDATA%\CyberBotGRC\logs\cyberbot.log` (ver `core.paths.get_logs_dir()`).
    Com nível DEBUG (se disponível), o bridge passa a registrar:
    - `Resposta /data: status=... body_len=... keys=...`
    - Quando há 0 itens: `Preview da resposta /data (quando 0 itens): ...`
@@ -78,3 +80,10 @@ O feed do painel vem **só** do que a API retorna em `/data`, que por sua vez l�
 ## Resumo
 
 O feed fica vazio quando a API devolve `sent_news` vazio, ou seja, quando o `database.json` na VPS está vazio ou é lido vazio. A causa que foi corrigida no código foi o **uso de `clean_test_items`**, que chegou a esvaziar esse arquivo. Com o endpoint desativado no servidor e a remoção da chamada no instalador, mais logs, exceções, testes e esta documentação, fica mais fácil manter e diagnosticar o problema se ele voltar a ocorrer.
+
+---
+
+## Documentação relacionada
+
+- **[README.md](../README.md)** – Visão geral, arquitetura, `core/bridge`, `core/logger`, `core/exceptions`, `core/paths`, build e instalador.
+- **[tests/TESTES_VALIDACAO.md](../tests/TESTES_VALIDACAO.md)** – Checklist de validação (NOW, System Tray, instalador, severidade) e testes automatizados.

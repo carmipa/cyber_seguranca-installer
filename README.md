@@ -14,6 +14,16 @@ Dashboard Windows para monitorar ameaças de cibersegurança em tempo real, inte
 
 ---
 
+## 📁 Navegação da documentação
+
+| Arquivo | Conteúdo |
+|---------|----------|
+| **[README.md](README.md)** (este arquivo) | Visão geral, arquitetura, componentes, como rodar, build e instalador |
+| **[tests/TESTES_VALIDACAO.md](tests/TESTES_VALIDACAO.md)** | Checklist de validação (NOW, System Tray, instalador, severidade) e testes automatizados |
+| **[docs/ANALISE_FEED_VAZIO.md](docs/ANALISE_FEED_VAZIO.md)** | Diagnóstico quando o feed exibe 0 vulnerabilidades (causas, exceções, `run_diagnostic`) |
+
+---
+
 ## 📌 Visão Geral
 
 O **CyberBot GRC** é um ecossistema de monitoramento de segurança composto por:
@@ -80,17 +90,28 @@ flowchart LR
 ```text
 cyber_seguranca-installer/
 ├── main.py               # Entrada do app desktop (Windows)
+├── main.spec             # Especificação PyInstaller (gera dist/main.exe)
+├── installer_config.iss  # Script Inno Setup (gera dist_installer/CyberBot_Setup.exe)
 ├── vps_api.py            # API FastAPI na VPS (porta 8000)
 ├── requirements.txt      # Dependências do projeto
+├── run_tests.py          # Entrada para rodar todos os testes (raiz do projeto)
 ├── assets/
 │   ├── icon.ico          # Ícone do app / executável
 │   └── icon.png          # Ícone em PNG (fallback)
 ├── core/
-│   ├── bridge.py         # Ponte HTTP: consumo da API, NOW, compartilhamento
-│   ├── logger.py         # Módulo de logging centralizado
-│   └── exceptions.py     # Exceções específicas do domínio
-└── ui/
-    └── dashboard.py      # Interface gráfica (CustomTkinter)
+│   ├── bridge.py         # Ponte HTTP: API, sync, NOW, compartilhamento, diagnóstico
+│   ├── logger.py         # Logging centralizado (console + arquivos rotativos)
+│   ├── exceptions.py     # Exceções do domínio VPS (VPSError, VPSConnectionError, etc.)
+│   └── paths.py          # Caminhos dinâmicos: assets, logs (dev vs instalado)
+├── ui/
+│   └── dashboard.py      # Interface gráfica (CustomTkinter)
+├── tests/                # Testes automatizados
+│   ├── run_all.py        # Runner que descobre e executa todos os testes
+│   ├── test_parse_severity.py
+│   ├── test_bridge_fetch_data.py
+│   └── TESTES_VALIDACAO.md
+└── docs/
+    └── ANALISE_FEED_VAZIO.md   # Diagnóstico quando o feed vem vazio
 ```
 
 ---
@@ -121,24 +142,22 @@ cyber_seguranca-installer/
 ### 2. `core/bridge.py` – Ponte Windows ↔ VPS
 
 - **Constantes:**
-  - `VPS_IP`, `URL_DADOS`, `URL_TRIGGER_SCAN`, `DASHBOARD_URL`.
+  - `VPS_IP`, `URL_DADOS_BASE` (GET /data), `URL_DEBUG`, `URL_TRIGGER_SCAN`, `URL_SYNC_DISCORD`, `URL_SYNC_BOT_DIRECT` (fallback porta 8080), `DASHBOARD_URL`.
 - **Funções:**
-  - `fetch_data()` – consome `GET /data`.
-    - Trata:
-      - Status HTTP ≠ 200;
-      - JSON inválido;
-      - Campo `sent_news` não ser lista;
-      - Timeouts e erros de conexão;
-    - Em caso de erro, retorna um card de fallback:
-      - `{"title": "...", "description": "...", "link": "#", "timestamp": ""}`.
-  - `parse_severity(title)` – extrai `CVSS x.y` do título e define:
-    - `CRITICAL` – preto;
-    - `HIGH` – vermelho;
-    - `MEDIUM` – amarelo;
-    - `INFO` – verde.
-  - `open_url(url)` – abre URLs no navegador padrão com logs e tratamento de erro.
-  - `share_whatsapp(title, link)` – monta um `wa.me` com texto pré-preenchido e abre no navegador.
-  - `share_email(title, description, link)` – monta um `mailto:` com assunto e corpo preparados.
+  - `fetch_data()` – consome `GET /data` (com cache-busting e headers anti-cache).
+    - Trata: status ≠ 200, JSON inválido, `sent_news` não lista, timeouts e erros de conexão.
+    - Quando `sent_news` vem vazio, consulta `/debug` e registra diagnóstico em log.
+    - Itens de teste são filtrados em `_filter_test_items` (ex.: "test news", "cve-9999"); em caso de erro retorna card de fallback.
+  - `sync_from_discord()` – sincroniza notícias do Discord para o `database.json` (tenta porta 8000, depois 8080).
+  - `run_diagnostic()` – chama `/data` e `/debug`, retorna dicionário com status, contagens e preview; em falha de conexão levanta `VPSConnectionError`.
+  - `parse_severity(title)` – alinhado ao bot (emoji 🚨 e CVSS):
+    - `CRITICAL` – vermelho (#dc3545), ícone 🚨;
+    - `HIGH` – laranja (#e67e22), ícone ⚠️;
+    - `MEDIUM` – amarelo (#f1c40f), ícone 🔶;
+    - `INFO` – verde (#00FF00), ícone ℹ️.
+  - `open_url(url)` – abre URLs no navegador padrão.
+  - `share_whatsapp(title, link)` – monta `wa.me` e abre no navegador.
+  - `share_email(title, description, link)` – monta `mailto:` com assunto e corpo.
   - `trigger_scan_now()` – chama `POST /trigger_scan` na VPS e retorna `True/False`.
 
 ### 3. `ui/dashboard.py` – Painel SOC no Windows
@@ -210,12 +229,28 @@ Cada item de `sent_news[]` é exibido por `create_discord_style_card`:
 
 ### 5. `core/logger.py` – Logging Centralizado
 
-- Cria logs:
-  - Console colorido (com ícones, cores por nível);
-  - Arquivo principal: `logs/cyberbot.log` (DEBUG+);
-  - Arquivo de erros: `logs/cyberbot_errors.log` (ERROR+).
-- Usa `RotatingFileHandler` para rotação automática.
-- Função `log_exception(logger, exc, context)` adiciona stack trace completo e contexto.
+- Usa **`core.paths.get_logs_dir()`** para o diretório de logs:
+  - **Desenvolvimento:** `logs/` na raiz do projeto.
+  - **Instalado (PyInstaller):** `%LOCALAPPDATA%\CyberBotGRC\logs` (persistente, não em temp).
+- Saídas:
+  - Console colorido (ícones e cores por nível, UTF-8 no Windows);
+  - Arquivo principal: `cyberbot.log` (DEBUG+, rotação 5 MB, 5 backups);
+  - Arquivo de erros: `cyberbot_errors.log` (ERROR+, rotação 2 MB, 3 backups).
+- `log_exception(logger, exc, context)` – registra exceção com stack trace e contexto.
+
+### 6. `core/exceptions.py` – Exceções do Domínio VPS
+
+- **`VPSError`** – base para erros da API (message, status_code, detail opcionais).
+- **`VPSConnectionError`** – não foi possível conectar (timeout, recusado, DNS).
+- **`VPSEmptyResponseError`** – API retornou 200 mas `sent_news` vazio.
+- **`VPSInvalidResponseError`** – resposta não é JSON válido ou estrutura inesperada.
+- **`VPSSyncError`** – falha ao sincronizar do Discord (sync retornou erro ou timeout).
+
+### 7. `core/paths.py` – Caminhos Dinâmicos
+
+- **`get_base_path()`** – em frozen (PyInstaller) retorna `_MEIPASS`; em dev, raiz do projeto.
+- **`get_assets_dir()`** / **`get_icon_path()`** – diretório de assets e caminho do ícone (icon.ico ou icon.png).
+- **`get_logs_dir()`** – em frozen usa `%LOCALAPPDATA%\CyberBotGRC\logs`; em dev usa `logs/` na raiz.
 
 ---
 
@@ -265,7 +300,19 @@ python main.py
 
 ---
 
-## 🧪 Testes manuais rápidos
+## 🧪 Testes
+
+### Automatizados (raiz do projeto)
+
+```powershell
+cd cyber_seguranca-installer
+.venv\Scripts\Activate.ps1
+python run_tests.py
+```
+
+Ou: `python -m tests.run_all`. Os testes incluem: imports, `parse_severity`, fetch/sync/trigger e diagnóstico (mocks).
+
+### Manuais rápidos
 
 - Com a API ligada e `database.json` válido:
   - Abra o app (`python main.py`);
@@ -281,7 +328,9 @@ python main.py
     - Confirme o diálogo de confirmação;
     - Ao clicar em **Sim**, o app deve fechar por completo.
 
-📋 **[Guia completo de testes e validação](tests/TESTES_VALIDACAO.md)** – Checklist para avaliadores, testes de NOW, System Tray, instalador e classificação de severidade.
+📋 **[Guia completo de testes e validação](tests/TESTES_VALIDACAO.md)** – Checklist para avaliadores: NOW, System Tray, instalador e classificação de severidade.
+
+📋 **[Análise: feed vazio](docs/ANALISE_FEED_VAZIO.md)** – Diagnóstico quando o painel exibe 0 vulnerabilidades (causas, exceções, `run_diagnostic`).
 
 ---
 
@@ -289,26 +338,38 @@ python main.py
 
 Quem quiser **apenas instalar** o painel, sem buildar do código-fonte, pode usar o instalador publicado no repositório:
 
-- **Pasta `dist_installer/`** – contém o **executável (.exe)** pronto para download e instalação no Windows.
-- Basta baixar o arquivo da pasta `dist_installer/`, executar e seguir o assistente de instalação.
-- Após a instalação, configure o IP da VPS em **Configurações** (ou edite o arquivo de configuração do app, se disponível) e tenha o bot e a API rodando na VPS para o feed funcionar.
+- **Pasta `dist_installer/`** – contém **`CyberBot_Setup.exe`** (gerado pelo Inno Setup).
+- Baixe o instalador, execute e siga o assistente. A instalação cria atalho no Menu Iniciar e opção de **iniciar com o Windows** (autostartup).
+- Após a instalação, os logs ficam em **`%LOCALAPPDATA%\CyberBotGRC\logs`**. Configure o IP da VPS no código (ou em configurações, se disponível) e tenha o bot e a API rodando na VPS para o feed funcionar.
 
-> Se o repositório for clonado via Git, a pasta `dist_installer/` pode estar no histórico ou nas [Releases](../../releases) do projeto. Verifique também a seção **Releases** no GitHub para versões empacotadas.
+> A pasta `dist_installer/` pode estar no histórico do Git ou nas [Releases](https://github.com/pacarminati/cyber_seguranca-installer/releases) do projeto.
 
 ---
 
-## 📦 Gerando o Executável (.exe) com PyInstaller
+## 📦 Gerando o Executável e o Instalador
 
-Para **gerar o instalador a partir do código** (desenvolvedores), com o ambiente virtual ativo no Windows:
+**Pré-requisito:** ambiente virtual ativo no Windows.
+
+### 1. Gerar o executável com PyInstaller (main.spec)
 
 ```powershell
 cd cyber_seguranca-installer
-pyinstaller main.py --onefile --noconsole --name "CyberBot-GRC" --icon "assets/icon.ico" --add-data "assets;assets"
+pyinstaller main.spec
 ```
 
-- O executável será gerado em **`dist/CyberBot-GRC.exe`**.
-- Para disponibilizar para outros usuários, copie o `.exe` para a pasta **`dist_installer/`** e faça commit (ou publique nas Releases do GitHub).
-- Distribua junto com as instruções de configuração da VPS e do bot do Discord.
+- Saída: **`dist/main.exe`** (onefile, sem console, com ícone e assets no bundle).
+
+### 2. Gerar o instalador com Inno Setup
+
+Com **`dist/main.exe`** já gerado, abra **`installer_config.iss`** no Inno Setup e compile, ou use a linha de comando:
+
+```powershell
+# Caminho típico do Inno Setup
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_config.iss
+```
+
+- Saída: **`dist_installer/CyberBot_Setup.exe`**.
+- O instalador copia `dist/main.exe` para `{autopf}\CyberBotGRC` como **CyberBot.exe**, inclui assets, atalho no Menu Iniciar e entrada em **Inicialização automática com o Windows**.
 
 ---
 
