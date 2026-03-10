@@ -78,6 +78,66 @@ flowchart LR
     W -->|Logs| L
 ```
 
+### Visão de componentes
+
+```mermaid
+flowchart TB
+    subgraph windowsApp [WindowsApp]
+        ui["UI CustomTkinter (ui/dashboard.py)"]
+        bridge["core.bridge (HTTP, compartilhamento)"]
+        logger["core.logger (logs locais)"]
+        paths["core.paths (assets, logs)"]
+    end
+
+    subgraph vpsSide [VPS]
+        fastapi["FastAPI vps_api.py (/data, /trigger_scan, /debug, /sync_from_discord)"]
+        bot["Bot Discord (projeto principal)"]
+        dbFile["database.json (sent_news)"]
+    end
+
+    subgraph externalServices [ServicosExternos]
+        discord["Discord (canal de alertas)"]
+        dashboardWeb["Dashboard Web (Node-RED)"]
+    end
+
+    ui --> bridge
+    bridge -->|GET/POST| fastapi
+    fastapi --> dbFile
+    bot --> dbFile
+    bot --> discord
+    ui --> logger
+    ui -->|Abre| dashboardWeb
+```
+
+### Fluxo do botão NOW (Scanner)
+
+```mermaid
+sequenceDiagram
+    actor Usuario
+    participant UI as DashboardWindows
+    participant Bridge as core.bridge
+    participant API as FastAPI_VPS
+    participant Bot as DiscordBot
+    participant JSON as database.json
+
+    Usuario->>UI: Clica em "Executar NOW (Scanner)"
+    UI->>Bridge: trigger_scan_now()
+    Bridge->>API: POST /trigger_scan
+    API-->>Bridge: 200 Accepted
+    Bridge-->>UI: True (sucesso)
+    UI->>UI: Agenda recargas do feed (45s, 75s)
+
+    API->>Bot: (futuro) Disparar rotina /now
+    Bot->>JSON: Grava novas entradas em sent_news
+
+    UI->>Bridge: fetch_data() (após delay)
+    Bridge->>API: GET /data
+    API->>JSON: Ler sent_news
+    API-->>Bridge: JSON com novas vulnerabilidades
+    Bridge-->>UI: Lista normalizada
+    UI->>UI: Atualiza cards no painel
+```
+
 ### Fluxos principais
 
 1. **Coleta de inteligência**

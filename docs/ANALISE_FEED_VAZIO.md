@@ -23,6 +23,29 @@ Nos logs do instalador aparecem:
 
 O feed do painel vem **só** do que a API retorna em `/data`, que por sua vez lê o **mesmo** `database.json` que o bot atualiza.
 
+```mermaid
+flowchart LR
+    subgraph VPS
+        bot["Bot Discord\n(coleta feeds)"]
+        dbFile["database.json\n(sent_news)"]
+        api["vps_api FastAPI\n(/data, /debug, /sync_from_discord)"]
+    end
+
+    subgraph WindowsApp
+        painel["Painel Windows\n(cyber_seguranca-installer)"]
+    end
+
+    subgraph DiscordSide
+        discord["Canal Discord\nde alertas"]
+    end
+
+    bot --> discord
+    bot --> dbFile
+    api --> dbFile
+    painel -->|GET /data| api
+    painel -->|run_diagnostic()|\napi
+```
+
 ## Causa raiz identificada
 
 1. **`clean_test_items` esvaziando o arquivo**  
