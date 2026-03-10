@@ -2,6 +2,8 @@
 
 # 🛡️ CyberBot GRC – Painel de Controle & SOC
 
+<img src="assets/icon.png" alt="Ícone do CyberBot GRC" width="180" />
+
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Platform](https://img.shields.io/badge/Plataforma-Windows%20%7C%20Linux-2C3E50)](#)
@@ -16,7 +18,7 @@ Dashboard Windows para monitorar ameaças de cibersegurança em tempo real, inte
 
 ## 📥 Download rápido do instalador
 
-- **Windows (instalador completo)**: [Baixar `CyberBot_Setup.exe`](dist_installer/CyberBot_Setup.exe)
+- **Windows (instalador completo)**: [Baixar `CyberBot_Setup.exe`](dist_installer/CyberBot_Setup.exe?raw=1)
 
 ---
 
