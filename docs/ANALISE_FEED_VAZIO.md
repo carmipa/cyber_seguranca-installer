@@ -42,8 +42,8 @@ flowchart LR
     bot --> discord
     bot --> dbFile
     api --> dbFile
-    painel -->|GET /data| api
-    painel -->|run_diagnostic()| api
+    painel -->|"GET /data"| api
+    painel -->|"run_diagnostic()"| api
 ```
 
 ## Causa raiz identificada
