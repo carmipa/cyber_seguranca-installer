@@ -43,7 +43,7 @@ flowchart LR
     bot --> dbFile
     api --> dbFile
     painel -->|GET /data| api
-    painel -->|run_diagnostic()|\napi
+    painel -->|run_diagnostic()| api
 ```
 
 ## Causa raiz identificada
