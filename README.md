@@ -14,6 +14,12 @@ Dashboard Windows para monitorar ameaças de cibersegurança em tempo real, inte
 
 ---
 
+## 📥 Download rápido do instalador
+
+- **Windows (instalador completo)**: [Baixar `CyberBot_Setup.exe`](dist_installer/CyberBot_Setup.exe)
+
+---
+
 ## 📁 Navegação da documentação
 
 | Arquivo | Conteúdo |
